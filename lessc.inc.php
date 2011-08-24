@@ -15,7 +15,7 @@
  * The less compiler and parser.
  *
  * Converting LESS to CSS is a two stage process. First the incoming document
- * must be parsed. Parsing creates a tree in memory that represents the 
+ * must be parsed. Parsing creates a tree in memory that represents the
  * structure of the document. Then, the tree of the document is recursively
  * compiled into the CSS text. The compile step has an implicit step called
  * reduction, where values are brought to their lowest form before being
@@ -38,7 +38,11 @@ class lessc {
 	protected $line;
 
 	public $indentLevel;
+
 	public $indentChar = '  ';
+	public $spacingChar = ' ';
+	public $shortenColors = false;
+	public $newLine = "\n";
 
 	protected $env = null;
 
@@ -73,7 +77,7 @@ class lessc {
 		'ms', 's', // Times
 		'Hz', 'kHz', //Frequencies
 	);
-    
+
 	public $importDisabled = false;
 	public $importDir = '';
 
@@ -420,7 +424,7 @@ class lessc {
 
 		if (count($values) == 0) return false;
 
-		$value = $this->compressList($values, ', ');
+		$value = $this->compressList($values, ',' . $this->spacingChar);
 		return true;
 	}
 
@@ -855,8 +859,8 @@ class lessc {
 
 		$this->pop();
 
-		$nl = $isRoot ? "\n".$indent :
-			"\n".$indent.$this->indentChar;
+		$nl = $isRoot ? $this->newLine.$indent :
+			$this->newLine.$indent.$this->indentChar;
 
 		ob_start();
 
@@ -864,7 +868,7 @@ class lessc {
 			$this->indentLevel--;
 			if (isset($block->media)) {
 				list($media_types, $media_rest) = $block->media;
-				echo "@media ".join(', ', $media_types).
+				echo "@media ".join(',' . $this->spacingChar, $media_types).
 					(!empty($media_rest) ? " $media_rest" : '' );
 			} elseif (isset($block->keyframes)) {
 				echo $block->tags[0]." ".
@@ -874,29 +878,29 @@ class lessc {
 				echo $indent.$name;
 			}
 
-			echo ' {'.(count($lines) > 0 ? $nl : "\n");
+			echo $this->spacingChar . '{'.(count($lines) > 0 ? $nl : $this->newLine);
 		}
 
 		// dump it
 		if (count($lines) > 0) {
 			if (!$special_block && !$isRoot) {
-				echo $indent.implode(", ", $tags);
-				if (count($lines) > 1) echo " {".$nl;
-				else echo " { ";
+				echo $indent.implode("," . $this->spacingChar, $tags);
+				if (count($lines) > 1) echo $this->spacingChar . "{".$nl;
+				else echo $this->spacingChar . "{" . $this->spacingChar;
 			}
 
 			echo implode($nl, $lines);
 
 			if (!$special_block && !$isRoot) {
-				if (count($lines) > 1) echo "\n".$indent."}\n";
-				else echo " }\n";
-			} else echo "\n";
+				if (count($lines) > 1) echo $this->newLine.$indent."}".$this->newLine;
+				else echo $this->spacingChar . "}".$this->newLine;
+			} else echo $this->newLine;
 		}
 
 		foreach ($blocks as $b) echo $b;
 
 		if ($special_block) {
-			echo $indent."}\n";
+			echo $indent."}".$this->newLine;
 		}
 
 		return ob_get_clean();
@@ -1077,7 +1081,7 @@ class lessc {
 			if (count($value) == 5) { // rgba
 				return 'rgba('.$value[1].','.$value[2].','.$value[3].','.$value[4].')';
 			}
-			return sprintf("#%02x%02x%02x", $value[1], $value[2], $value[3]);
+			return $this->lib_rgbhex($value);
 		case 'function':
 			// [1] - function name
 			// [2] - some value representing arguments
@@ -1091,6 +1095,28 @@ class lessc {
 		default: // assumed to be unit	
 			return $value[1].$value[0];
 		}
+	}
+
+	/**
+	 * Shorten colorcodes if possible
+	 */
+	function lib_rgbhex($color) {
+		$ret = '#';
+		$shortable = $this->shortenColors;
+		for ($i = 1; $i < count($color) && $shortable; ++$i) {
+			if ($color[$i] % 0x10 !== (int) ($color[$i] / 0x10)) {
+				$shortable = false;
+			}
+		}
+		for ($i = 1; $i < count($color); ++$i) {
+			if ($shortable) {
+				$color[$i] = $color[$i] % 0x10;
+			} elseif ($color[$i] < 0x10) {
+				$ret .= '0';
+			}
+			$ret .= dechex($color[$i]);
+		}
+		return $ret;
 	}
 
 	function lib_rgbahex($color) {
