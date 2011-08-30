@@ -1816,7 +1816,7 @@ class lessc {
 			if (is_null($min)) break;
 
 			$count = $min[1];
-			$skip = 0;
+			$skip = null;
 			$newlines = 0;
 			switch ($min[0]) {
 			case 'url(':
@@ -1836,9 +1836,10 @@ class lessc {
 			case '/*': 
 				if (preg_match('/\/\*.*?\*\//s', $text, $m, 0, $count))
 				{
-					if (strlen($m[0]) < $this->keepCommentsLen) {
+					if (strlen($m[0]) < $this->keepCommentsLen ||
+						$this->keepCommentsLen === -1) {
 						$count += strlen($min[0]) + 3;
-						$skip = null;
+						$skip = 0;
 					} else {
 						$skip = strlen($m[0]);
 						$newlines = substr_count($m[0], "\n");
@@ -1847,7 +1848,7 @@ class lessc {
 				break;
 			}
 
-			if ($skip === 0) $count += strlen($min[0]);
+			if ($skip === null) $count += strlen($min[0]);
 
 			$out .= substr($text, 0, $count).str_repeat("\n", $newlines);
 			$text = substr($text, $count + $skip);
