@@ -44,6 +44,8 @@ class lessc {
 	public $shortenColors = false;
 	public $newLine = "\n";
 
+	public $keepCommentsLen = 0;
+
 	protected $env = null;
 
 	protected $allParsedFiles = array();
@@ -146,6 +148,12 @@ class lessc {
 			return true;
 		} else {
 			$this->seek($s);
+		}
+
+		// Comment
+		if ($this->match('\/\*(.*?)\*\/', $m)) {
+			$this->append(array('comment', $m[1]));
+			return true;
 		}
 
 		// look for special css blocks
@@ -896,7 +904,6 @@ class lessc {
 				else echo $this->spacingChar . "}".$this->newLine;
 			} else echo $this->newLine;
 		}
-
 		foreach ($blocks as $b) echo $b;
 
 		if ($special_block) {
@@ -965,7 +972,7 @@ class lessc {
 				$this->set($name, $this->reduce($value));
 			} else {
 				$_lines[] = "$name:".
-					$this->compileValue($this->reduce($value)).";";
+				$this->compileValue($this->reduce($value)).";";
 			}
 			break;
 		case 'block':
@@ -1024,6 +1031,13 @@ class lessc {
 		case 'charset':
 			list(, $value) = $prop;
 			$_lines[] = '@charset '.$this->compileValue($this->reduce($value)).';';
+			break;
+		case 'comment':
+			if (count($_blocks) > 0) {
+				$_blocks[] = "/*{$prop[1]}*/";
+			} else {
+				$_lines[] = "/*{$prop[1]}*/";
+			}
 			break;
 		default:
 			echo "unknown op: {$prop[0]}\n";
@@ -1820,14 +1834,20 @@ class lessc {
 				else $skip -= $count;
 				break;
 			case '/*': 
-				if (preg_match('/\/\*.*?\*\//s', $text, $m, 0, $count)) {
-					$skip = strlen($m[0]);
-					$newlines = substr_count($m[0], "\n");
+				if (preg_match('/\/\*.*?\*\//s', $text, $m, 0, $count))
+				{
+					if (strlen($m[0]) < $this->keepCommentsLen) {
+						$count += strlen($min[0]) + 3;
+						$skip = null;
+					} else {
+						$skip = strlen($m[0]);
+						$newlines = substr_count($m[0], "\n");
+					}
 				}
 				break;
 			}
 
-			if ($skip == 0) $count += strlen($min[0]);
+			if ($skip === 0) $count += strlen($min[0]);
 
 			$out .= substr($text, 0, $count).str_repeat("\n", $newlines);
 			$text = substr($text, $count + $skip);
